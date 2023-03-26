@@ -29,6 +29,15 @@ def mqtt_publish_check(result, msg):
     else:
         print(f"Failed to send: {msg}")
 
+def subscribe(client: mqtt_client):
+    def on_message(client, userdata, msg):
+        # print(f"{msg.payload} en pila")
+        pila_MQTT.put(msg)
+
+    client.subscribe("/topic/esp-pppos")
+    client.subscribe("/DATAOUT_2")
+    client.on_message = on_message
+
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
@@ -39,6 +48,7 @@ def connect_mqtt() -> mqtt_client:
             # sys.exit(1)
 
     client = mqtt_client.Client(client_id)
+    client.username_pw_set("local", "password")
     # client.username_pw_set(username, password)
     client.on_connect = on_connect
 
@@ -72,6 +82,8 @@ def procesar_datos_en_pila_mqtt():
                     payload = json.loads(msg.payload)
                     topic = msg.topic
                     print(payload)
+
+                    insert_data(payload)
                     commit()
 
                 except Exception as e:

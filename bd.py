@@ -6,7 +6,7 @@ from datetime import datetime
 # SQL CONFIG:
 # BD_IP = "192.168.5.20"
 BD_IP = "127.0.0.1"
-BD_NAME = "oee_db"
+BD_NAME = "data"
 BD_USER = "python"
 BD_PSWRD = "holapython48"
 sql_cursor = None
@@ -16,6 +16,27 @@ def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
     tiempo_old_sec = time.mktime(time.strptime(tiempo_old_str, "%Y-%m-%d %H:%M:%S"))
     tiempo_new_sec = time.mktime(time.strptime(tiempo_new_str, "%Y-%m-%d %H:%M:%S"))
     return tiempo_new_sec - tiempo_old_sec
+
+def get_mac_recurso(mac):
+    sql_cursor.execute(
+        f"""SELECT id
+        FROM recursos
+        WHERE mac = x'{mac}'"""
+    )
+    return sql_cursor.fetchone()[0]
+
+def insert_data(data):
+    id_rec = get_mac_recurso(data["MAC_rec"])
+    valores = (id_rec,
+                data["temp"],
+                data["n_apert"],
+                abs(data["rssi"]),
+                data["timestmp"])
+
+    query = f"""INSERT INTO data 
+            (id_rec, temp, n_apert, rssi, timestmp)
+            VALUES (?,?,?,?,?)"""
+    sql_cursor.execute(query, valores)
 
 
 def sql_start(data_base):
