@@ -34,7 +34,7 @@ def subscribe(client: mqtt_client):
         # print(f"{msg.payload} en pila")
         pila_MQTT.put(msg)
 
-    client.subscribe("/topic/esp-pppos")
+    client.subscribe("/to_server/refrigerators/model_A")
     client.subscribe("/DATAOUT_2")
     client.on_message = on_message
 
@@ -78,12 +78,11 @@ def procesar_datos_en_pila_mqtt():
                 # print(f"topic: {msg.topic}")
                 print(f"payload: {msg.payload}")
                 try:
-                    crearCursor()
                     payload = json.loads(msg.payload)
                     topic = msg.topic
-                    print(payload)
-
-                    insert_data(payload)
+                    crearCursor()
+                    if topic == "/to_server/refrigerators/model_A":
+                        insert_data(payload)
                     commit()
 
                 except Exception as e:

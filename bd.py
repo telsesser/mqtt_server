@@ -20,8 +20,8 @@ def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
 def get_mac_recurso(mac):
     sql_cursor.execute(
         f"""SELECT id
-        FROM recursos
-        WHERE mac = x'{mac}'"""
+        FROM monitors
+        WHERE mac_address = x'{mac}'"""
     )
     return sql_cursor.fetchone()[0]
 
@@ -34,7 +34,7 @@ def insert_data(data):
                 data["timestmp"])
 
     query = f"""INSERT INTO data 
-            (id_rec, temp, n_apert, rssi, timestmp)
+            (id_monitor, temp, openings, rssi, timestmp)
             VALUES (?,?,?,?,?)"""
     sql_cursor.execute(query, valores)
 
