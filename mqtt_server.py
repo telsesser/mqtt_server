@@ -34,8 +34,7 @@ def subscribe(client: mqtt_client):
         # print(f"{msg.payload} en pila")
         pila_MQTT.put(msg)
 
-    client.subscribe("/to_server/refrigerators/model_A")
-    client.subscribe("/DATAOUT_2")
+    client.subscribe("/to_server/#")
     client.on_message = on_message
 
 def connect_mqtt() -> mqtt_client:
@@ -75,15 +74,13 @@ def procesar_datos_en_pila_mqtt():
                 msg = pila_MQTT.get()
                 if msg is None:
                     continue
-                # print(f"topic: {msg.topic}")
-                print(f"payload: {msg.payload}")
                 try:
                     payload = json.loads(msg.payload)
                     topic = msg.topic
                     crearCursor()
-                    if topic == "/to_server/refrigerators/model_A":
-                        insert_data(payload)
+                    insert_data(payload)
                     commit()
+
 
                 except Exception as e:
                     rollback()
