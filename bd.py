@@ -55,19 +55,46 @@ def insert_data(data):
         data["timestmp"],
     )
 
+    # Obtener la mediana de rssi de los últimos 24 registros
+    query_median = """SELECT MEDIAN(rssi) OVER () FROM (
+        SELECT rssi
+        FROM data
+        WHERE id_monitor = ?
+        ORDER BY timestmp DESC
+        LIMIT 24
+    ) AS subquery"""
+    sql_cursor.execute(query_median, (id_monitor,))
+    median_rssi = sql_cursor.fetchone()[0]
+
     query = f"""INSERT INTO data 
             (id_monitor, temp, openings, rssi, timestmp)
             VALUES (?,?,?,?,?)"""
     sql_cursor.execute(query, valores)
 
     # Update the "monitores" table with the latest values
-    query = (
-        """UPDATE monitors SET batery=?, rssi=?, openings=?, last_data=? WHERE id=?"""
-    )
+    query = """UPDATE monitors SET battery=?, rssi=?, openings=?, last_data=?, temp=? WHERE id=?"""
     sql_cursor.execute(
         query,
-        (data["bat"], abs(data["rssi"]), data["n_apert"], data["timestmp"], id_monitor),
+        (
+            data["bat"],
+            abs(data["rssi"]),
+            data["n_apert"],
+            data["timestmp"],
+            data["temp"],
+            id_monitor,
+        ),
     )
+
+    if median_rssi - 1 <= abs(data["rssi"]) <= median_rssi + 1:
+        query = """UPDATE monitors SET moved=?, moved_datetime=? WHERE id=?"""
+        sql_cursor.execute(
+            query,
+            (
+                True,
+                data["timestmp"],
+                id_monitor,
+            ),
+        )
 
     # Obtener el último nivel de batería registrado
     query = """SELECT battery_level FROM monitors_battery WHERE id_monitor = ? ORDER BY timestmp DESC LIMIT 1"""
@@ -75,7 +102,7 @@ def insert_data(data):
     last_battery_level = sql_cursor.fetchone()
 
     # Comprobar si el nivel de batería ha cambiado o si "id_battery" es NULL
-    if last_battery_level is None or last_battery_level[0] != data["bat"]:
+    if last_battery_level is None or last_battery_level[0] < data["bat"]:
         # Registrar el nuevo valor de batería en "monitors_battery"
         query = """INSERT INTO monitors_battery (battery_level, timestmp, id_monitor) VALUES (?,?,?)"""
         sql_cursor.execute(query, (data["bat"], data["timestmp"], id_monitor))
@@ -107,8 +134,16 @@ def sql_start(data_base):
     return conn
 
 
+def is_connected():
+    try:
+        conn.ping()
+    except:
+        connect_bd()
+
+
 def crearCursor():
     global sql_cursor
+    is_connected()
     sql_cursor = conn.cursor(buffered=True)
 
 

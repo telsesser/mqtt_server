@@ -6,7 +6,7 @@ from queue import Queue
 import sys
 import logging
 import csv
-from bd import *
+import bd
 
 
 # MQTT CONFIG:
@@ -20,6 +20,7 @@ client_id = f"python-mqtt-{random.randint(0, 1000)}"
 # PILA DE DATOS DE ENTRADA
 pila_MQTT = Queue()
 
+
 # REVISADO
 def mqtt_publish_check(result, msg):
     status = result[0]
@@ -29,6 +30,7 @@ def mqtt_publish_check(result, msg):
     else:
         print(f"Failed to send: {msg}")
 
+
 def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
         # print(f"{msg.payload} en pila")
@@ -36,6 +38,7 @@ def subscribe(client: mqtt_client):
 
     client.subscribe("/to_server/#")
     client.on_message = on_message
+
 
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
@@ -72,18 +75,17 @@ def procesar_datos_en_pila_mqtt():
         if not pila_MQTT.empty():
             while not pila_MQTT.empty():
                 msg = pila_MQTT.get()
-                if msg is None:
+                if msg.topic == "/to_server/gateway":
                     continue
                 try:
                     payload = json.loads(msg.payload)
                     topic = msg.topic
-                    crearCursor()
-                    insert_data(payload)
-                    commit()
-
+                    bd.crearCursor()
+                    bd.insert_data(payload)
+                    bd.commit()
 
                 except Exception as e:
-                    rollback()
+                    bd.rollback()
                     with open("datosNoProcesados.csv", "a") as f:
                         writer = csv.writer(f)
                         writer.writerow(
@@ -97,7 +99,7 @@ def procesar_datos_en_pila_mqtt():
                     if msg.topic is not None and msg.payload is not None:
                         logging.exception(f"msg: {msg.payload} de topic: {msg.topic}")
                         break
-                cerrarCursor()
+                bd.cerrarCursor()
         else:
             time.sleep(1)
 
