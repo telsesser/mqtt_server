@@ -6,22 +6,21 @@ from queue import Queue
 import sys
 import logging
 import csv
-import bd
-
+import database
+import crud
 
 # MQTT CONFIG:
 client = None
 BROKER = "127.0.0.1"
 # BROKER = "192.168.5.20"
 PORT = 1883
-client_id = f"python-mqtt-{random.randint(0, 1000)}"
+client_id = f"python-mqtt-server"
 
 
 # PILA DE DATOS DE ENTRADA
 pila_MQTT = Queue()
 
 
-# REVISADO
 def mqtt_publish_check(result, msg):
     status = result[0]
     if status == 0:
@@ -43,27 +42,22 @@ def subscribe(client: mqtt_client):
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
-            print("CONECTADO AL BROKER")
+            logging.info("Connected to the broker")
             subscribe(client)
         else:
-            print("Fallo la conexion con el BROKER. Codigo de error: %d", rc)
-            # sys.exit(1)
+            logging.error("Failed to connect to the broker. Error code: %d", rc)
 
     client = mqtt_client.Client(client_id)
     client.username_pw_set("local", "password")
-    # client.username_pw_set(username, password)
     client.on_connect = on_connect
 
     while True:
         try:
-            # print("BUSCANDO BROKER")
             client.connect(BROKER, PORT)
-        except:
-            # print("NO SE ENCUENTRA EL BROKER")
+        except Exception as e:
             time.sleep(1)
             continue
         else:
-            # print("SE ENCONTRO EL BROKER!")
             break
 
     client.loop_start()
@@ -71,37 +65,44 @@ def connect_mqtt() -> mqtt_client:
 
 
 def procesar_datos_en_pila_mqtt():
+    db = database.DatabasePool()
     while True:
-        if not pila_MQTT.empty():
-            while not pila_MQTT.empty():
-                msg = pila_MQTT.get()
-                if msg.topic == "/to_server/gateway":
-                    continue
-                try:
-                    payload = json.loads(msg.payload)
-                    topic = msg.topic
-                    bd.crearCursor()
-                    bd.insert_data(payload)
-                    bd.commit()
+        while not pila_MQTT.empty():
+            start_time = time.perf_counter()
+            conn = db.get_connection()
+            msg = pila_MQTT.get()
+            if msg.topic == "/to_server/gateway":
+                continue
+            try:
+                payload = json.loads(msg.payload)
+                match msg.topic:
+                    case "/to_server/refrigerators/model_B":
+                        crud.insert_data_model_B(conn, payload)
+                    case "/to_server/refrigerators/model_A":
+                        crud.insert_data_model_A(conn, payload)
+                conn.commit()
+                end_time = time.perf_counter()
+                processing_time = (end_time - start_time) * 1000
+                logging.info(f"{msg.topic.split('/')[-1]} {processing_time:.6f} ms")
 
-                except Exception as e:
-                    bd.rollback()
-                    with open("datosNoProcesados.csv", "a") as f:
-                        writer = csv.writer(f)
-                        writer.writerow(
-                            [
-                                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                                msg.topic,
-                                msg.payload,
-                            ]
-                        )
+            except Exception as e:
+                conn.rollback()
+                with open("datosNoProcesados.csv", "a") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(
+                        [
+                            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                            msg.topic,
+                            msg.payload,
+                        ]
+                    )
 
-                    if msg.topic is not None and msg.payload is not None:
-                        logging.exception(f"msg: {msg.payload} de topic: {msg.topic}")
-                        break
-                bd.cerrarCursor()
-        else:
-            time.sleep(1)
+                if msg.topic is not None and msg.payload is not None:
+                    logging.exception(f"msg: {msg.payload} de topic: {msg.topic}")
+                    break
+            finally:
+                conn.close()
+        time.sleep(1)
 
 
 def connect_mqtt_broker():

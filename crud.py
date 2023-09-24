@@ -1,52 +1,31 @@
-import time
-import json
-import mariadb
-from datetime import datetime
-
-# SQL CONFIG:
-# BD_IP = "192.168.5.20"
-BD_IP = "127.0.0.1"
-BD_NAME = "data"
-BD_USER = "python"
-BD_PSWRD = "holapython48"
-sql_cursor = None
-conn = None
-
-
 def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
     tiempo_old_sec = time.mktime(time.strptime(tiempo_old_str, "%Y-%m-%d %H:%M:%S"))
     tiempo_new_sec = time.mktime(time.strptime(tiempo_new_str, "%Y-%m-%d %H:%M:%S"))
     return tiempo_new_sec - tiempo_old_sec
 
 
-def get_mac_recurso(mac):
-    sql_cursor.execute(
-        f"""SELECT id
+def get_mac_recurso(cur, mac):
+    cur.execute(
+        """SELECT id
         FROM monitors
-        WHERE mac_address = '{mac}'"""
+        WHERE mac_address = %s""",
+        (mac,),
     )
-    result = sql_cursor.fetchone()
-    if result is not None:
+    result = cur.fetchone()
+    if result:
         return result[0]
     else:
-        sql_cursor.execute(
-            f"""INSERT INTO monitors (mac_address)
-            VALUES ('{mac}')"""
+        cur.execute(
+            """INSERT INTO monitors (mac_address)
+            VALUES (%s)""",
+            (mac,),
         )
-        return sql_cursor.lastrowid
+        return cur.lastrowid
 
 
-# {"timestmp":"2023-05-05 13:58:04",
-# "MAC_rec":"d8c7f5157ba7",
-# "tipo":1,
-# "temp":1.070000,
-# "n_apert":0,
-# "rssi":-73,
-# "bat":80}
-
-
-def insert_data(data):
-    id_monitor = get_mac_recurso(data["MAC_rec"])
+def insert_data_model_A(conn, data):
+    sql_cursor = conn.cursor(buffered=True)
+    id_monitor = get_mac_recurso(sql_cursor, data["MAC_rec"])
     valores = (
         id_monitor,
         data["temp"],
@@ -64,7 +43,10 @@ def insert_data(data):
         LIMIT 24
     ) AS subquery"""
     sql_cursor.execute(query_median, (id_monitor,))
-    median_rssi = sql_cursor.fetchone()[0]
+    if sql_cursor.rowcount == 0:
+        median_rssi = 0
+    else:
+        median_rssi = sql_cursor.fetchone()[0]
 
     query = f"""INSERT INTO data 
             (id_monitor, temp, openings, rssi, timestmp)
@@ -108,58 +90,5 @@ def insert_data(data):
         sql_cursor.execute(query, (data["bat"], data["timestmp"], id_monitor))
 
 
-def sql_start(data_base):
-    # Connect to MariaDB Platform
-    sql_conection_flag = False
-    while not sql_conection_flag:
-        try:
-            conn = mariadb.connect(
-                user=BD_USER,
-                password=BD_PSWRD,
-                host=BD_IP,
-                port=3306,
-                database=data_base,
-            )
-            sql_conection_flag = True
-
-        except mariadb.Error as e:
-            print(f"Error connecting to MariaDB Platform: {e}")
-            # sys.exit(1)
-            time.sleep(1)
-            continue
-        else:
-            # print("CONECTADO A BD")
-            break
-
-    return conn
-
-
-def is_connected():
-    try:
-        conn.ping()
-    except:
-        connect_bd()
-
-
-def crearCursor():
-    global sql_cursor
-    is_connected()
-    sql_cursor = conn.cursor(buffered=True)
-
-
-def cerrarCursor():
-    sql_cursor.close()
-
-
-def commit():
-    conn.commit()
-
-
-def rollback():
-    conn.rollback()
-
-
-def connect_bd():
-    global conn
-    conn = sql_start(BD_NAME)
-    conn.autocommit = False
+def insert_data_model_B(conn, data):
+    pass
