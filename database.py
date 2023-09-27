@@ -39,11 +39,11 @@ def sql_start(data_base):
     return conn
 
 
-def is_connected():
+"""def is_connected():
     try:
         conn.ping()
     except:
-        connect_bd()
+        connect_bd()"""
 
 
 def crearCursor():

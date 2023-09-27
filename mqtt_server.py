@@ -1,9 +1,7 @@
-import random
 import time
 import json
 from paho.mqtt import client as mqtt_client
 from queue import Queue
-import sys
 import logging
 import csv
 import database
@@ -69,7 +67,6 @@ def procesar_datos_en_pila_mqtt():
     while True:
         while not pila_MQTT.empty():
             start_time = time.perf_counter()
-            conn = db.get_connection()
             msg = pila_MQTT.get()
             if msg.topic == "/to_server/gateway":
                 continue
@@ -77,31 +74,19 @@ def procesar_datos_en_pila_mqtt():
                 payload = json.loads(msg.payload)
                 match msg.topic:
                     case "/to_server/refrigerators/model_B":
-                        crud.insert_data_model_B(conn, payload)
+                        crud.insert_data_model_B(db, payload)
                     case "/to_server/refrigerators/model_A":
-                        crud.insert_data_model_A(conn, payload)
-                conn.commit()
+                        crud.insert_data_model_A(db, payload)
+                    case "/to_server/s3":
+                        crud.insert_data_s3(payload)
                 end_time = time.perf_counter()
                 processing_time = (end_time - start_time) * 1000
                 logging.info(f"{msg.topic.split('/')[-1]} {processing_time:.6f} ms")
 
             except Exception as e:
-                conn.rollback()
-                with open("datosNoProcesados.csv", "a") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(
-                        [
-                            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                            msg.topic,
-                            msg.payload,
-                        ]
-                    )
-
-                if msg.topic is not None and msg.payload is not None:
-                    logging.exception(f"msg: {msg.payload} de topic: {msg.topic}")
+                if msg.topic and msg.payload:
+                    logging.exception(f"{msg.topic}: {msg.payload}")
                     break
-            finally:
-                conn.close()
         time.sleep(1)
 
 
