@@ -48,7 +48,7 @@ def sql_start(data_base):
 
 def crearCursor():
     global sql_cursor
-    is_connected()
+    # is_connected()
     sql_cursor = conn.cursor(buffered=True)
 
 

@@ -113,7 +113,7 @@ def insert_data_model_A(db, data):
         conn.close()
 
 
-def insert_data_model_B(conn, data):
+def insert_data_model_B(db, data):
     conn = db.get_connection()
     sql_cursor = conn.cursor(buffered=True)
     try:
@@ -139,7 +139,7 @@ def insert_data_model_B(conn, data):
             data["n_apert"] - monitor["openings"],
             data["timestmp"],
             data["temp"],
-            id_monitor,
+            monitor["id"],
         )
         sql_cursor.execute(query, values)
 
@@ -167,7 +167,7 @@ def insert_data_model_B(conn, data):
                 (
                     True,
                     data["timestmp"],
-                    id_monitor,
+                    monitor["id"],
                 ),
             )
 
@@ -175,13 +175,13 @@ def insert_data_model_B(conn, data):
         if (monitor["battery"] is None) or (data["bat"] < monitor["battery"]):
             # Registrar el nuevo valor de batería en "monitors_battery"
             query = """INSERT INTO monitors_battery (battery_level, timestmp, id_monitor) VALUES (?,?,?)"""
-            sql_cursor.execute(query, (data["bat"], data["timestmp"], id_monitor))
+            sql_cursor.execute(query, (data["bat"], data["timestmp"], monitor["id"]))
 
         conn.commit()
 
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        raise e
+        raise
     finally:
         conn.close()
 
@@ -200,6 +200,5 @@ def insert_data_s3(data):
                 data["press[5]"],
                 data["press[6]"],
                 data["press[7]"],
-                data["press[8]"],
             ]
         )

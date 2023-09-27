@@ -83,10 +83,9 @@ def procesar_datos_en_pila_mqtt():
                 processing_time = (end_time - start_time) * 1000
                 logging.info(f"{msg.topic.split('/')[-1]} {processing_time:.6f} ms")
 
-            except Exception as e:
+            except Exception:
                 if msg.topic and msg.payload:
                     logging.exception(f"{msg.topic}: {msg.payload}")
-                    break
         time.sleep(1)
 
 
