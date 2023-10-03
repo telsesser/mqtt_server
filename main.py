@@ -1,6 +1,8 @@
 import mqtt_server
 import logging
 
+VERSION = "0.1"
+
 
 def main():
     logging.basicConfig(
@@ -10,6 +12,7 @@ def main():
         format="%(asctime)s %(levelname)-8s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    logging.info("Iniciando servidor MQTT v%s", VERSION)
     mqtt_server.connect_mqtt_broker()
     mqtt_server.procesar_datos_en_pila_mqtt()
 
