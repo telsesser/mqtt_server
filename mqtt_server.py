@@ -79,6 +79,8 @@ def procesar_datos_en_pila_mqtt():
                         crud.insert_data_model_A(db, payload)
                     case "/to_server/s3":
                         crud.insert_data_s3(payload)
+                    case _:
+                        raise Exception(f"Topic not recognized")
                 end_time = time.perf_counter()
                 processing_time = (end_time - start_time) * 1000
                 logging.info(f"{msg.topic.split('/')[-1]} {processing_time:.6f} ms")

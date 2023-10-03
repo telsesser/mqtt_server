@@ -1,5 +1,6 @@
 import csv
 import time
+import os
 
 
 def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
@@ -30,8 +31,8 @@ def get_monitor_info(cur, mac):
         )
         monitor = {
             "id": cur.lastrowid,
-            "battery": None,
-            "openings": None,
+            "battery": 100,
+            "openings": 0,
         }
     return monitor
 
@@ -82,7 +83,7 @@ def insert_data_model_A(db, data):
             ),
         )
 
-        if median_rssi - 1 <= abs(data["rssi"]) <= median_rssi + 1:
+        if median_rssi - 20 <= abs(data["rssi"]) <= median_rssi + 20:
             query = """UPDATE monitors SET moved=?, moved_datetime=? WHERE id=?"""
             sql_cursor.execute(
                 query,
@@ -118,33 +119,30 @@ def insert_data_model_B(db, data):
     sql_cursor = conn.cursor(buffered=True)
     try:
         monitor = get_monitor_info(sql_cursor, data["MAC_rec"])
-
+        data["rssi"] = abs(data["rssi"])
         query = f"""INSERT INTO data 
                 (id_monitor, temp, openings, rssi, timestmp)
                 VALUES (?,?,?,?,?)"""
         values = (
             monitor["id"],
             data["temp"],
-            data["n_apert"],
-            abs(data["rssi"]),
+            data["n_apert"] - monitor["openings"],
+            data["rssi"],
             data["timestmp"],
         )
         sql_cursor.execute(query, values)
 
-        # Update the "monitores" table with the latest values
-        query = """UPDATE monitors SET battery=?, rssi=?, openings=?, last_data=?, temp=? WHERE id=?"""
+        query = (
+            """UPDATE monitors SET rssi=?, openings=?, last_data=?, temp=? WHERE id=?"""
+        )
         values = (
-            data["bat"],
-            abs(data["rssi"]),
-            data["n_apert"] - monitor["openings"],
+            data["rssi"],
+            data["n_apert"],
             data["timestmp"],
             data["temp"],
             monitor["id"],
         )
         sql_cursor.execute(query, values)
-
-        # Obtener la mediana de rssi de los últimos 24 registros
-        # TODO: Hacer con over partition
 
         query_median = """SELECT MEDIAN(rssi) OVER () FROM (
             SELECT rssi
@@ -156,11 +154,11 @@ def insert_data_model_B(db, data):
         sql_cursor.execute(query_median, (monitor["id"],))
 
         if sql_cursor.rowcount == 0:
-            median_rssi = abs(data["rssi"])
+            median_rssi = data["rssi"]
         else:
             median_rssi = sql_cursor.fetchone()[0]
 
-        if median_rssi - 20 <= abs(data["rssi"]) <= median_rssi + 20:
+        if abs(median_rssi - data["rssi"]) > 20:
             query = """UPDATE monitors SET moved=?, moved_datetime=? WHERE id=?"""
             sql_cursor.execute(
                 query,
@@ -171,9 +169,9 @@ def insert_data_model_B(db, data):
                 ),
             )
 
-        # Comprobar si el nivel de batería ha cambiado o si "id_battery" es NULL
         if (monitor["battery"] is None) or (data["bat"] < monitor["battery"]):
-            # Registrar el nuevo valor de batería en "monitors_battery"
+            query = """UPDATE monitors SET battery=? WHERE id=?"""
+            sql_cursor.execute(query, (data["bat"], monitor["id"]))
             query = """INSERT INTO monitors_battery (battery_level, timestmp, id_monitor) VALUES (?,?,?)"""
             sql_cursor.execute(query, (data["bat"], data["timestmp"], monitor["id"]))
 
@@ -186,9 +184,26 @@ def insert_data_model_B(db, data):
         conn.close()
 
 
+import os
+
+
 def insert_data_s3(data):
+    header = [
+        "timestmp",
+        "press[0]",
+        "press[1]",
+        "press[2]",
+        "press[3]",
+        "press[4]",
+        "press[5]",
+        "press[6]",
+        "press[7]",
+    ]
+    file_exists = os.path.isfile("unprocessed-door-openings.csv")
     with open("unprocessed-door-openings.csv", "a") as f:
         writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(header)
         writer.writerow(
             [
                 data["timestmp"],
