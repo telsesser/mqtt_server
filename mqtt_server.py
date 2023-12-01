@@ -28,26 +28,29 @@ def mqtt_publish_check(result, msg):
         print(f"Failed to send: {msg}")
 
 
-def subscribe(client: mqtt_client):
-    def on_message(client, userdata, msg):
-        # print(f"{msg.payload} en pila")
-        pila_MQTT.put(msg)
-
-    client.subscribe("/to_server/#")
-    client.on_message = on_message
-
-
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
             logging.info("Connected to the broker")
-            subscribe(client)
+            client.subscribe("/to_server/#", qos=1)
         else:
-            logging.error("Failed to connect to the broker. Error code: %d", rc)
+            logging.error(f"Failed to connect to the broker. Error code: {rc}")
 
-    client = mqtt_client.Client(client_id)
+    def on_disconnect(client, userdata, rc):
+        if rc != 0:
+            logging.error(f"Unexpected disconnection. Error code: {rc}")
+        else:
+            logging.info(f"Disconnected from the broker. Error code: {rc}")
+
+    def on_message(client, userdata, msg):
+        pila_MQTT.put(msg)
+
+    client = mqtt_client.Client(client_id=client_id, clean_session=False)
     client.username_pw_set("local", "password")
     client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
+    client.on_message = on_message
+    # client.enable_logger(logger=logging.getLogger())
 
     while True:
         try:
@@ -72,7 +75,8 @@ def procesar_datos_en_pila_mqtt():
                 continue
             try:
                 payload = json.loads(msg.payload)
-                match msg.topic:
+                topic = msg.topic.replace(" ", "")
+                match topic:
                     case "/to_server/refrigerators/model_B":
                         crud.insert_data_model_B(db, payload)
                     case "/to_server/refrigerators/model_A":

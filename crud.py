@@ -11,7 +11,7 @@ def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
 
 def get_monitor_info(cur, mac):
     cur.execute(
-        """SELECT id, battery, openings
+        """SELECT id, battery, openings, id_refrigerator
         FROM monitors
         WHERE mac_address = %s""",
         (mac,),
@@ -22,6 +22,7 @@ def get_monitor_info(cur, mac):
             "id": result[0],
             "battery": result[1],
             "openings": result[2],
+            "id_refrigerator": result[3],
         }
     else:
         cur.execute(
@@ -33,6 +34,7 @@ def get_monitor_info(cur, mac):
             "id": cur.lastrowid,
             "battery": 100,
             "openings": 0,
+            "id_refrigerator": None,
         }
     return monitor
 
@@ -44,6 +46,7 @@ def insert_data_model_A(db, data):
         monitor = get_monitor_info(sql_cursor, data["MAC_rec"])
         valores = (
             monitor["id"],
+            monitor["id_refrigerator"],
             data["temp"],
             data["n_apert"],
             abs(data["rssi"]),
@@ -65,8 +68,8 @@ def insert_data_model_A(db, data):
             median_rssi = sql_cursor.fetchone()[0]
 
         query = f"""INSERT INTO data 
-                (id_monitor, temp, openings, rssi, timestmp)
-                VALUES (?,?,?,?,?)"""
+                (id_monitor,id_refrigerator, temp, openings, rssi, timestmp)
+                VALUES (?,?,?,?,?,?)"""
         sql_cursor.execute(query, valores)
 
         # Update the "monitores" table with the latest values
@@ -119,64 +122,72 @@ def insert_data_model_B(db, data):
     sql_cursor = conn.cursor(buffered=True)
     try:
         monitor = get_monitor_info(sql_cursor, data["MAC_rec"])
-        data["rssi"] = abs(data["rssi"])
-        query = f"""INSERT INTO data 
-                (id_monitor, temp, openings, rssi, timestmp)
-                VALUES (?,?,?,?,?)"""
-        values = (
-            monitor["id"],
-            data["temp"],
-            data["n_apert"] - monitor["openings"],
-            data["rssi"],
-            data["timestmp"],
+        sql_cursor.execute(
+            """SELECT id_monitor FROM data WHERE id_monitor = %s AND msg_counter = %s""",
+            (monitor["id"], data["count"]),
         )
-        sql_cursor.execute(query, values)
-
-        query = (
-            """UPDATE monitors SET rssi=?, openings=?, last_data=?, temp=? WHERE id=?"""
-        )
-        values = (
-            data["rssi"],
-            data["n_apert"],
-            data["timestmp"],
-            data["temp"],
-            monitor["id"],
-        )
-        sql_cursor.execute(query, values)
-
-        query_median = """SELECT MEDIAN(rssi) OVER () FROM (
-            SELECT rssi
-            FROM data
-            WHERE id_monitor = ?
-            ORDER BY timestmp DESC
-            LIMIT 24
-        ) AS subquery"""
-        sql_cursor.execute(query_median, (monitor["id"],))
-
         if sql_cursor.rowcount == 0:
-            median_rssi = data["rssi"]
-        else:
-            median_rssi = sql_cursor.fetchone()[0]
-
-        if abs(median_rssi - data["rssi"]) > 20:
-            query = """UPDATE monitors SET moved=?, moved_datetime=? WHERE id=?"""
-            sql_cursor.execute(
-                query,
-                (
-                    True,
-                    data["timestmp"],
-                    monitor["id"],
-                ),
+            data["rssi"] = abs(data["rssi"])
+            query = f"""INSERT INTO data 
+                    (id_monitor,id_refrigerator,msg_counter, temp, openings, rssi, timestmp)
+                    VALUES (?,?,?,?,?,?,?)"""
+            values = (
+                monitor["id"],
+                monitor["id_refrigerator"],
+                data["count"],
+                data["temp"],
+                data["n_apert"],
+                data["rssi"],
+                data["timestmp"],
             )
+            sql_cursor.execute(query, values)
 
-        if (monitor["battery"] is None) or (data["bat"] < monitor["battery"]):
-            query = """UPDATE monitors SET battery=? WHERE id=?"""
-            sql_cursor.execute(query, (data["bat"], monitor["id"]))
-            query = """INSERT INTO monitors_battery (battery_level, timestmp, id_monitor) VALUES (?,?,?)"""
-            sql_cursor.execute(query, (data["bat"], data["timestmp"], monitor["id"]))
+            query = """UPDATE monitors SET rssi=?, openings=?, last_data=?, temp=? WHERE id=?"""
+            values = (
+                data["rssi"],
+                data["n_apert"],
+                data["timestmp"],
+                data["temp"],
+                monitor["id"],
+            )
+            sql_cursor.execute(query, values)
 
-        conn.commit()
+            query_median = """SELECT MEDIAN(rssi) OVER () FROM (
+                SELECT rssi
+                FROM data
+                WHERE id_monitor = ?
+                ORDER BY timestmp DESC
+                LIMIT 24
+            ) AS subquery"""
+            sql_cursor.execute(query_median, (monitor["id"],))
 
+            if sql_cursor.rowcount == 0:
+                median_rssi = data["rssi"]
+            else:
+                median_rssi = sql_cursor.fetchone()[0]
+
+            if abs(median_rssi - data["rssi"]) > 20:
+                query = """UPDATE monitors SET moved=?, moved_datetime=? WHERE id=?"""
+                sql_cursor.execute(
+                    query,
+                    (
+                        True,
+                        data["timestmp"],
+                        monitor["id"],
+                    ),
+                )
+
+            if data["bat"] < monitor["battery"]:
+                query = """UPDATE monitors SET battery=? WHERE id=?"""
+                sql_cursor.execute(query, (data["bat"], monitor["id"]))
+                query = """INSERT INTO monitors_battery (battery_level, timestmp, id_monitor) VALUES (?,?,?)"""
+                sql_cursor.execute(
+                    query, (data["bat"], data["timestmp"], monitor["id"])
+                )
+
+            conn.commit()
+        else:
+            raise Exception("Dato duplicado")
     except Exception:
         conn.rollback()
         raise
@@ -188,25 +199,30 @@ import os
 
 
 def insert_data_s3(data):
-    header = [
-        "timestmp",
-        "press[0]",
-        "press[1]",
-        "press[2]",
-        "press[3]",
-        "press[4]",
-        "press[5]",
-        "press[6]",
-        "press[7]",
-    ]
     file_exists = os.path.isfile("unprocessed-door-openings.csv")
     with open("unprocessed-door-openings.csv", "a") as f:
         writer = csv.writer(f)
         if not file_exists:
+            header = [
+                "timestmp",
+                "MAC_rec",
+                "classification_value",
+                "press[0]",
+                "press[1]",
+                "press[2]",
+                "press[3]",
+                "press[4]",
+                "press[5]",
+                "press[6]",
+                "press[7]",
+            ]
+
             writer.writerow(header)
         writer.writerow(
             [
                 data["timestmp"],
+                data["MAC_rec"],
+                data["classification_value"],
                 data["press[0]"],
                 data["press[1]"],
                 data["press[2]"],
