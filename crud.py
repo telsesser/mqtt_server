@@ -86,7 +86,12 @@ def insert_data_model_A(db, data):
             ),
         )
 
-        if median_rssi - 20 <= abs(data["rssi"]) <= median_rssi + 20:
+        last_three_rssis = []
+        query = """SELECT rssi FROM data WHERE id_monitor = ? ORDER BY timestmp DESC LIMIT 3;"""
+        sql_cursor.execute(query, (monitor["id"],))
+        last_three_rssis = sql_cursor.fetchall()
+
+        if all(abs(median_rssi - rssi) > 20 for rssi in last_three_rssis):
             query = """UPDATE monitors SET moved=?, moved_datetime=? WHERE id=?"""
             sql_cursor.execute(
                 query,
