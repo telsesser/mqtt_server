@@ -91,7 +91,9 @@ def procesar_datos_en_pila_mqtt():
 
             except Exception as e:
                 if e.args[0] == "Dato duplicado":
-                    logging.info(f"{msg.topic}: {msg.payload}")
+                    end_time = time.perf_counter()
+                    processing_time = (end_time - start_time) * 1000
+                    logging.info(f"Dato duplicado {processing_time:.6f} ms")
                 elif msg.topic and msg.payload:
                     logging.exception(f"{msg.topic}: {msg.payload}")
         time.sleep(1)
