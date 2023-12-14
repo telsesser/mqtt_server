@@ -147,12 +147,13 @@ def insert_data_model_B(db, data):
             )
             sql_cursor.execute(query, values)
 
-            query = """UPDATE monitors SET rssi=?, openings=?, last_data=?, temp=? WHERE id=?"""
+            query = """UPDATE monitors SET rssi=?, openings=?, last_data=?, temp=?, id_gateway=? WHERE id=?"""
             values = (
                 data["rssi"],
                 data["n_apert"],
                 data["timestmp"],
                 data["temp"],
+                data["id_gateway"],
                 monitor["id"],
             )
             sql_cursor.execute(query, values)
