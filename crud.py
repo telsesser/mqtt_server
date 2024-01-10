@@ -1,8 +1,6 @@
 import csv
 import time
 import os
-import datetime
-import pytz
 
 
 def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
