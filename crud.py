@@ -2,6 +2,7 @@ import csv
 import time
 import os
 import datetime
+import pytz
 
 
 def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
@@ -208,7 +209,9 @@ import os
 def insert_status_model_B(db, data):
     conn = db.get_connection()
     sql_cursor = conn.cursor(buffered=True)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.datetime.now(pytz.timezone("Etc/GMT-3")).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     try:
         query = (
             """UPDATE gateways SET battery=?, last_data=?, power_state=? WHERE id=?"""
