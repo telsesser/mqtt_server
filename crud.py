@@ -209,16 +209,14 @@ import os
 def insert_status_model_B(db, data):
     conn = db.get_connection()
     sql_cursor = conn.cursor(buffered=True)
-    timestamp = datetime.datetime.now(pytz.timezone("Etc/GMT-3")).strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+
     try:
         query = (
             """UPDATE gateways SET battery=?, last_data=?, power_state=? WHERE id=?"""
         )
         values = (
             data["battery_level"],
-            timestamp,
+            data["timestmp"],
             data["power_state"] + 1,
             data["id_gateway"],
         )
