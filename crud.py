@@ -153,7 +153,7 @@ def insert_data_model_B(db, data):
                 data["n_apert"],
                 data["timestmp"],
                 data["temp"],
-                data["id_gateway"],
+                abs(data["id_gateway"]),
                 monitor["id"],
             )
             sql_cursor.execute(query, values)
@@ -216,7 +216,7 @@ def insert_status_model_B(db, data):
             data["battery_level"],
             data["timestmp"],
             data["power_state"] + 1,
-            data["id_gateway"],
+            abs(data["id_gateway"]),
         )
         sql_cursor.execute(query, values)
         conn.commit()
