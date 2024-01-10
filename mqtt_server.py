@@ -77,6 +77,8 @@ def procesar_datos_en_pila_mqtt():
                 payload = json.loads(msg.payload)
                 topic = msg.topic.replace(" ", "")
                 match topic:
+                    case "/to_server/refrigerators/model_B/status":
+                        crud.insert_status_model_B(db, payload)
                     case "/to_server/refrigerators/model_B":
                         crud.insert_data_model_B(db, payload)
                     case "/to_server/refrigerators/model_A":

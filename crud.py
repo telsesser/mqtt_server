@@ -1,6 +1,7 @@
 import csv
 import time
 import os
+import datetime
 
 
 def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
@@ -194,14 +195,37 @@ def insert_data_model_B(db, data):
             conn.commit()
         else:
             raise Exception("Dato duplicado")
-    except Exception:
+    except Exception as e:
         conn.rollback()
-        raise
+        raise e
     finally:
         conn.close()
 
 
 import os
+
+
+def insert_status_model_B(db, data):
+    conn = db.get_connection()
+    sql_cursor = conn.cursor(buffered=True)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        query = (
+            """UPDATE gateways SET battery=?, last_data=?, power_state=? WHERE id=?"""
+        )
+        values = (
+            data["battery_level"],
+            timestamp,
+            data["power_state"] + 1,
+            data["id_gateway"],
+        )
+        sql_cursor.execute(query, values)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
 
 def insert_data_s3(data):
