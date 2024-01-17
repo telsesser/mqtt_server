@@ -65,6 +65,14 @@ def connect_mqtt() -> mqtt_client:
     return client
 
 
+import re
+
+
+def corregir_json(json_str):
+    json_str_corregido = re.sub(r'("id_gateway":\s*)([^,}\s]+)', r'\1"\2"', json_str)
+    return json_str_corregido
+
+
 def procesar_datos_en_pila_mqtt():
     db = database.DatabasePool()
     while True:
@@ -74,7 +82,8 @@ def procesar_datos_en_pila_mqtt():
             if msg.topic == "/to_server/gateway":
                 continue
             try:
-                payload = json.loads(msg.payload)
+                json_str = corregir_json(msg.payload)
+                payload = json.loads(json_str)
                 topic = msg.topic.replace(" ", "")
                 match topic:
                     case "/to_server/refrigerators/model_B/status":

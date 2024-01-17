@@ -39,6 +39,47 @@ def get_monitor_info(cur, mac):
     return monitor
 
 
+def get_gateway_info(cur, id):
+    if id.isdigit() or isinstance(id, int):
+        id = abs(int(id))
+        cur.execute(
+            """SELECT id, battery, power_state
+            FROM gateways
+            WHERE id = %s""",
+            (id,),
+        )
+        result = cur.fetchone()
+
+    else:
+        cur.execute(
+            """SELECT id, battery, power_state
+            FROM gateways
+            WHERE id_mac = %s""",
+            (id,),
+        )
+        result = cur.fetchone()
+
+    if result:
+        gateway = {
+            "id": result[0],
+            "battery": result[1],
+            "power_state": result[2],
+        }
+
+    else:
+        cur.execute(
+            """INSERT INTO gateways (id_mac)
+            VALUES (%s)""",
+            (id,),
+        )
+        gateway = {
+            "id": cur.lastrowid,
+            "battery": 100,
+            "power_state": 0,
+        }
+    return gateway
+
+
 def insert_data_model_A(db, data):
     conn = db.get_connection()
     sql_cursor = conn.cursor(buffered=True)
@@ -127,6 +168,7 @@ def insert_data_model_B(db, data):
     sql_cursor = conn.cursor(buffered=True)
     try:
         monitor = get_monitor_info(sql_cursor, data["MAC_rec"])
+        gateway = get_gateway_info(sql_cursor, data["id_gateway"])
         sql_cursor.execute(
             """SELECT id_monitor FROM data WHERE id_monitor = %s AND msg_counter = %s""",
             (monitor["id"], data["count"]),
@@ -153,7 +195,7 @@ def insert_data_model_B(db, data):
                 data["n_apert"],
                 data["timestmp"],
                 data["temp"],
-                abs(data["id_gateway"]),
+                gateway["id"],
                 monitor["id"],
             )
             sql_cursor.execute(query, values)
@@ -207,6 +249,7 @@ import os
 def insert_status_model_B(db, data):
     conn = db.get_connection()
     sql_cursor = conn.cursor(buffered=True)
+    gateway = get_gateway_info(sql_cursor, data["id_gateway"])
 
     try:
         query = (
@@ -216,7 +259,7 @@ def insert_status_model_B(db, data):
             data["battery_level"],
             data["timestmp"],
             data["power_state"] + 1,
-            abs(data["id_gateway"]),
+            gateway["id"],
         )
         sql_cursor.execute(query, values)
         conn.commit()
