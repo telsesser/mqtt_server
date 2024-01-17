@@ -82,7 +82,7 @@ def procesar_datos_en_pila_mqtt():
             if msg.topic == "/to_server/gateway":
                 continue
             try:
-                json_str = corregir_json(msg.payload)
+                json_str = corregir_json(msg.payload.decode("utf-8"))
                 payload = json.loads(json_str)
                 topic = msg.topic.replace(" ", "")
                 match topic:
