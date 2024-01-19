@@ -11,7 +11,7 @@ def diferencia_tiempos_segundos(tiempo_new_str, tiempo_old_str):
 
 def get_monitor_info(cur, mac):
     cur.execute(
-        """SELECT id, battery, openings, id_refrigerator
+        """SELECT id, battery, openings, id_refrigerator, defined_rssi
         FROM monitors
         WHERE mac_address = %s""",
         (mac,),
@@ -23,11 +23,12 @@ def get_monitor_info(cur, mac):
             "battery": result[1],
             "openings": result[2],
             "id_refrigerator": result[3],
+            "defined_rssi": result[4],
         }
     else:
         cur.execute(
-            """INSERT INTO monitors (mac_address)
-            VALUES (%s)""",
+            """INSERT INTO monitors (mac_address, defined_rssi)
+            VALUES (%s, 80)""",
             (mac,),
         )
         monitor = {
@@ -35,6 +36,7 @@ def get_monitor_info(cur, mac):
             "battery": 100,
             "openings": 0,
             "id_refrigerator": None,
+            "defined_rssi": 80,
         }
     return monitor
 
@@ -175,6 +177,7 @@ def insert_data_model_B(db, data):
         )
         if sql_cursor.rowcount == 0:
             data["rssi"] = abs(data["rssi"])
+
             query = f"""INSERT INTO data 
                     (id_monitor,id_refrigerator,msg_counter, temp, openings, rssi, timestmp)
                     VALUES (?,?,?,?,?,?,?)"""
@@ -189,45 +192,51 @@ def insert_data_model_B(db, data):
             )
             sql_cursor.execute(query, values)
 
-            query = """UPDATE monitors SET rssi=?, openings=?, last_data=?, temp=?, id_gateway=? WHERE id=?"""
+            moved_datetime = (
+                data["timestmp"]
+                if abs(monitor["defined_rssi"] - data["rssi"]) > 20
+                else None
+            )
+
+            query = """UPDATE monitors SET  battery=?, rssi=?, openings=?, last_data=?, temp=?, id_gateway=?, moved_datetime=? WHERE id=?"""
             values = (
+                data["bat"],
                 data["rssi"],
                 data["n_apert"],
                 data["timestmp"],
                 data["temp"],
                 gateway["id"],
+                moved_datetime,
                 monitor["id"],
             )
             sql_cursor.execute(query, values)
 
-            query_median = """SELECT MEDIAN(rssi) OVER () FROM (
-                SELECT rssi
-                FROM data
-                WHERE id_monitor = ?
-                ORDER BY timestmp DESC
-                LIMIT 24
-            ) AS subquery"""
-            sql_cursor.execute(query_median, (monitor["id"],))
+            # query_median = """SELECT MEDIAN(rssi) OVER () FROM (
+            #     SELECT rssi
+            #     FROM data
+            #     WHERE id_monitor = ?
+            #     ORDER BY timestmp DESC
+            #     LIMIT 24
+            # ) AS subquery"""
+            # sql_cursor.execute(query_median, (monitor["id"],))
 
-            if sql_cursor.rowcount == 0:
-                median_rssi = data["rssi"]
-            else:
-                median_rssi = sql_cursor.fetchone()[0]
+            # if sql_cursor.rowcount == 0:
+            #     median_rssi = data["rssi"]
+            # else:
+            #     median_rssi = sql_cursor.fetchone()[0]
 
-            if abs(median_rssi - data["rssi"]) > 20:
-                query = """UPDATE monitors SET moved=?, moved_datetime=? WHERE id=?"""
-                sql_cursor.execute(
-                    query,
-                    (
-                        True,
-                        data["timestmp"],
-                        monitor["id"],
-                    ),
-                )
+            # if abs(median_rssi - data["rssi"]) > 20:
+            #     query = """UPDATE monitors SET moved=?, moved_datetime=? WHERE id=?"""
+            #     sql_cursor.execute(
+            #         query,
+            #         (
+            #             True,
+            #             data["timestmp"],
+            #            monitor["id"],
+            #         ),
+            # )
 
             if data["bat"] < monitor["battery"]:
-                query = """UPDATE monitors SET battery=? WHERE id=?"""
-                sql_cursor.execute(query, (data["bat"], monitor["id"]))
                 query = """INSERT INTO monitors_battery (battery_level, timestmp, id_monitor) VALUES (?,?,?)"""
                 sql_cursor.execute(
                     query, (data["bat"], data["timestmp"], monitor["id"])
@@ -240,6 +249,7 @@ def insert_data_model_B(db, data):
         conn.rollback()
         raise e
     finally:
+        sql_cursor.close()
         conn.close()
 
 
