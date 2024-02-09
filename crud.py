@@ -271,6 +271,15 @@ def insert_status_model_B(db, data):
             data["power_state"] + 1,
             gateway["id"],
         )
+        if abs(data["battery_level"] - gateway["battery"]) > 1:
+            query_battery = """INSERT INTO gateways_battery (battery_level, timestmp, id_gateway) VALUES (?,?,?)"""
+            values_battery = (
+                data["battery_level"],
+                data["timestmp"],
+                gateway["id"],
+            )
+            sql_cursor.execute(query_battery, values_battery)
+
         sql_cursor.execute(query, values)
         conn.commit()
     except Exception as e:
