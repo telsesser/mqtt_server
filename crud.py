@@ -262,16 +262,8 @@ def insert_status_model_B(db, data):
     gateway = get_gateway_info(sql_cursor, data["id_gateway"])
 
     try:
-        query = (
-            """UPDATE gateways SET battery=?, last_data=?, power_state=? WHERE id=?"""
-        )
-        values = (
-            data["battery_level"],
-            data["timestmp"],
-            data["power_state"] + 1,
-            gateway["id"],
-        )
-        if abs(data["battery_level"] - gateway["battery"]) > 4:
+        battery_level = gateway["battery"]
+        if abs(data["battery_level"] - gateway["battery"]) >= 3:
             query_battery = """INSERT INTO gateways_battery (battery_level, timestmp, id_gateway) VALUES (?,?,?)"""
             values_battery = (
                 data["battery_level"],
@@ -279,7 +271,17 @@ def insert_status_model_B(db, data):
                 gateway["id"],
             )
             sql_cursor.execute(query_battery, values_battery)
+            battery_level = data["battery_level"]
 
+        query = (
+            """UPDATE gateways SET battery=?, last_data=?, power_state=? WHERE id=?"""
+        )
+        values = (
+            battery_level,
+            data["timestmp"],
+            data["power_state"] + 1,
+            gateway["id"],
+        )
         sql_cursor.execute(query, values)
         conn.commit()
     except Exception as e:
