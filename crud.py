@@ -271,7 +271,7 @@ def insert_status_model_B(db, data):
             data["power_state"] + 1,
             gateway["id"],
         )
-        if abs(data["battery_level"] - gateway["battery"]) > 5:
+        if abs(data["battery_level"] - gateway["battery"]) > 4:
             query_battery = """INSERT INTO gateways_battery (battery_level, timestmp, id_gateway) VALUES (?,?,?)"""
             values_battery = (
                 data["battery_level"],
