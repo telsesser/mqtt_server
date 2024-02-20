@@ -69,13 +69,8 @@ import re
 
 
 def corregir_json(json_str):
-    return re.sub(
-        r'("id_gateway":\s*)("[^"]+"|[^,}\s]+)',
-        lambda match: (
-            match.group(1) + '"\2"' if '"' not in match.group(2) else match.group(0)
-        ),
-        json_str,
-    )
+    json_str_corregido = re.sub(r'("id_gateway":\s*)([^,}\s]+)', r'\1"\2"', json_str)
+    return json_str_corregido
 
 
 def procesar_datos_en_pila_mqtt():
