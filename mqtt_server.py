@@ -69,7 +69,9 @@ import re
 
 
 def corregir_json(json_str):
-    json_str_corregido = re.sub(r'("id_gateway":\s*)([^,}\s]+)', r'\1"\2"', json_str)
+    json_str_corregido = re.sub(
+        r'("id_gateway":\s*)("[^"]+"|[^,}\s]+)', r'\1"\2"', json_str
+    )
     return json_str_corregido
 
 
@@ -82,29 +84,23 @@ def procesar_datos_en_pila_mqtt():
             if msg.topic == "/to_server/gateway":
                 continue
             try:
-                try:
-                    payload = json.loads(msg.payload.decode("utf-8"))
-                except Exception as e:
-                    try:
-                        payload = json.loads(corregir_json(msg.payload.decode("utf-8")))
-                    except Exception as e:
-                        raise Exception(f"Error al parsear JSON: {e}")
-                else:
-                    topic = msg.topic.replace(" ", "")
-                    match topic:
-                        case "/to_server/refrigerators/model_B/status":
-                            crud.insert_status_model_B(db, payload)
-                        case "/to_server/refrigerators/model_B":
-                            crud.insert_data_model_B(db, payload)
-                        case "/to_server/refrigerators/model_A":
-                            crud.insert_data_model_A(db, payload)
-                        case "/to_server/s3":
-                            crud.insert_data_s3(payload)
-                        case _:
-                            raise Exception(f"Topic not recognized")
-                    end_time = time.perf_counter()
-                    processing_time = (end_time - start_time) * 1000
-                    logging.info(f"{msg.topic.split('/')[-1]} {processing_time:.6f} ms")
+                json_str = corregir_json(msg.payload.decode("utf-8"))
+                payload = json.loads(json_str)
+                topic = msg.topic.replace(" ", "")
+                match topic:
+                    case "/to_server/refrigerators/model_B/status":
+                        crud.insert_status_model_B(db, payload)
+                    case "/to_server/refrigerators/model_B":
+                        crud.insert_data_model_B(db, payload)
+                    case "/to_server/refrigerators/model_A":
+                        crud.insert_data_model_A(db, payload)
+                    case "/to_server/s3":
+                        crud.insert_data_s3(payload)
+                    case _:
+                        raise Exception(f"Topic not recognized")
+                end_time = time.perf_counter()
+                processing_time = (end_time - start_time) * 1000
+                logging.info(f"{msg.topic.split('/')[-1]} {processing_time:.6f} ms")
 
             except Exception as e:
                 if e.args[0] == "Dato duplicado":
