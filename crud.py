@@ -31,6 +31,7 @@ def get_monitor_info(cur, mac):
             VALUES (%s, 80)""",
             (mac,),
         )
+
         monitor = {
             "id": cur.lastrowid,
             "battery": 100,
@@ -38,6 +39,11 @@ def get_monitor_info(cur, mac):
             "id_refrigerator": None,
             "defined_rssi": 80,
         }
+
+        cur.execute(
+            """INSERT INTO monitors_defined_rssi (id_monitor, timestmp, rssi) VALUES (%s, %s, %s)""",
+            (monitor["id"], time.strftime("%Y-%m-%d %H:%M:%S"), 80),
+        )
     return monitor
 
 
